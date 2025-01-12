@@ -15,7 +15,8 @@
     "@types/echarts": "^4.9.22",
     "@types/jquery": "^3.5.32",
     "echarts": "^5.6.0",
-    "vue": "^3.5.13"
+    "vue": "^3.5.13",
+    "vue-echarts": "^7.0.3"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
