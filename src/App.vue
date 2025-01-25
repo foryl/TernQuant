@@ -1,14 +1,21 @@
 <template>
-  <div ref="chart" style="width: 100%; height: 800px;"></div>
+  <div ref="chartDiv" style="width: 100%; height: 800px;"></div>
 </template>
- 
-<script>
+
+<script setup lang="ts">
+import { ref, onMounted, nextTick } from 'vue';
 import * as echarts from 'echarts';
+import { readFile } from 'fs';
+
+
+const chartDiv = ref<HTMLDivElement | null>(null);
+let myChart: echarts.ECharts | null = null;
 
 const upColor = '#ec0000';
 const upBorderColor = '#8A0000';
 const downColor = '#00da3c';
 const downBorderColor = '#008F28';
+
 const data0 = splitData([
   ['2013/1/24', 2320.26, 2320.26, 2287.3, 2362.94],
   ['2013/1/25', 2300, 2291.3, 2288.26, 2308.38],
@@ -100,228 +107,225 @@ const data0 = splitData([
   ['2013/6/13', 2190.1, 2148.35, 2126.22, 2190.1]
 ]);
 
-export default {
-  name: 'CandlestickChart',
-  mounted() {
-    this.initChart();
+function splitData(rawData: (number | string)[][]) {
+  const categoryData = [];
+  const values = [];
+  for (var i = 0; i < rawData.length; i++) {
+    categoryData.push(rawData[i].splice(0, 1)[0]);
+    values.push(rawData[i]);
+  }
+  return {
+    categoryData: categoryData,
+    values: values
+  };
+}
+
+function calculateMA(dayCount: number) {
+  var result = [];
+  for (var i = 0, len = data0.values.length; i < len; i++) {
+    if (i < dayCount) {
+      result.push('-');
+      continue;
+    }
+    var sum = 0;
+    for (var j = 0; j < dayCount; j++) {
+      sum += +data0.values[i - j][1];
+    }
+    result.push(sum / dayCount);
+  }
+  return result;
+}
+
+const option = {
+  title: {
+    text: '上证指数',
+    left: 0
   },
-  methods: {
-    splitData(rawData) {
-      const categoryData = [];
-      const values = [];
-      for (var i = 0; i < rawData.length; i++) {
-        categoryData.push(rawData[i].splice(0, 1)[0]);
-        values.push(rawData[i]);
-      }
-      return {
-        categoryData: categoryData,
-        values: values
-      };
+  tooltip: {
+    trigger: 'axis',
+    axisPointer: {
+      type: 'cross'
+    }
+  },
+  legend: {
+    data: ['日K', 'MA5', 'MA10', 'MA20', 'MA30']
+  },
+  grid: {
+    left: '10%',
+    right: '10%',
+    bottom: '15%'
+  },
+  xAxis: {
+    type: 'category',
+    data: data0.categoryData,
+    boundaryGap: false,
+    axisLine: { onZero: false },
+    splitLine: { show: false },
+    min: 'dataMin',
+    max: 'dataMax'
+  },
+  yAxis: {
+    scale: true,
+    splitArea: {
+      show: true
+    }
+  },
+  dataZoom: [
+    {
+      type: 'inside',
+      start: 50,
+      end: 100
     },
-
-    calculateMA(dayCount) {
-      var result = [];
-      for (var i = 0, len = data0.values.length; i < len; i++) {
-        if (i < dayCount) {
-          result.push('-');
-          continue;
-        }
-        var sum = 0;
-        for (var j = 0; j < dayCount; j++) {
-          sum += +data0.values[i - j][1];
-        }
-        result.push(sum / dayCount);
-      }
-      return result;
-    },
-
-    initChart() {
-      const chart = echarts.init(this.$refs.chart);
-      option = {
-        title: {
-          text: '上证指数',
-          left: 0
-        },
-        tooltip: {
-          trigger: 'axis',
-          axisPointer: {
-            type: 'cross'
+    {
+      show: true,
+      type: 'slider',
+      top: '90%',
+      start: 50,
+      end: 100
+    }
+  ],
+  series: [
+    {
+      name: '日K',
+      type: 'candlestick',
+      data: data0.values,
+      itemStyle: {
+        color: upColor,
+        color0: downColor,
+        borderColor: upBorderColor,
+        borderColor0: downBorderColor
+      },
+      markPoint: {
+        label: {
+          formatter: function (param: any) {
+            return param != null ? Math.round(param.value) + '' : '';
           }
         },
-        legend: {
-          data: ['日K', 'MA5', 'MA10', 'MA20', 'MA30']
-        },
-        grid: {
-          left: '10%',
-          right: '10%',
-          bottom: '15%'
-        },
-        xAxis: {
-          type: 'category',
-          data: data0.categoryData,
-          boundaryGap: false,
-          axisLine: { onZero: false },
-          splitLine: { show: false },
-          min: 'dataMin',
-          max: 'dataMax'
-        },
-        yAxis: {
-          scale: true,
-          splitArea: {
-            show: true
-          }
-        },
-        dataZoom: [
+        data: [
           {
-            type: 'inside',
-            start: 50,
-            end: 100
+            name: 'Mark',
+            coord: ['2013/5/31', 2300],
+            value: 2300,
+            itemStyle: {
+              color: 'rgb(41,60,85)'
+            }
           },
           {
-            show: true,
-            type: 'slider',
-            top: '90%',
-            start: 50,
-            end: 100
+            name: 'highest value',
+            type: 'max',
+            valueDim: 'highest'
+          },
+          {
+            name: 'lowest value',
+            type: 'min',
+            valueDim: 'lowest'
+          },
+          {
+            name: 'average value on close',
+            type: 'average',
+            valueDim: 'close'
           }
         ],
-        series: [
-          {
-            name: '日K',
-            type: 'candlestick',
-            data: data0.values,
-            itemStyle: {
-              color: upColor,
-              color0: downColor,
-              borderColor: upBorderColor,
-              borderColor0: downBorderColor
-            },
-            markPoint: {
+        tooltip: {
+          formatter: function (param: any) {
+            return param.name + '<br>' + (param.data.coord || '');
+          }
+        }
+      },
+      markLine: {
+        symbol: ['none', 'none'],
+        data: [
+          [
+            {
+              name: 'from lowest to highest',
+              type: 'min',
+              valueDim: 'lowest',
+              symbol: 'circle',
+              symbolSize: 10,
               label: {
-                formatter: function (param) {
-                  return param != null ? Math.round(param.value) + '' : '';
-                }
+                show: false
               },
-              data: [
-                {
-                  name: 'Mark',
-                  coord: ['2013/5/31', 2300],
-                  value: 2300,
-                  itemStyle: {
-                    color: 'rgb(41,60,85)'
-                  }
-                },
-                {
-                  name: 'highest value',
-                  type: 'max',
-                  valueDim: 'highest'
-                },
-                {
-                  name: 'lowest value',
-                  type: 'min',
-                  valueDim: 'lowest'
-                },
-                {
-                  name: 'average value on close',
-                  type: 'average',
-                  valueDim: 'close'
-                }
-              ],
-              tooltip: {
-                formatter: function (param) {
-                  return param.name + '<br>' + (param.data.coord || '');
+              emphasis: {
+                label: {
+                  show: false
                 }
               }
             },
-            markLine: {
-              symbol: ['none', 'none'],
-              data: [
-                [
-                  {
-                    name: 'from lowest to highest',
-                    type: 'min',
-                    valueDim: 'lowest',
-                    symbol: 'circle',
-                    symbolSize: 10,
-                    label: {
-                      show: false
-                    },
-                    emphasis: {
-                      label: {
-                        show: false
-                      }
-                    }
-                  },
-                  {
-                    type: 'max',
-                    valueDim: 'highest',
-                    symbol: 'circle',
-                    symbolSize: 10,
-                    label: {
-                      show: false
-                    },
-                    emphasis: {
-                      label: {
-                        show: false
-                      }
-                    }
-                  }
-                ],
-                {
-                  name: 'min line on close',
-                  type: 'min',
-                  valueDim: 'close'
-                },
-                {
-                  name: 'max line on close',
-                  type: 'max',
-                  valueDim: 'close'
+            {
+              type: 'max',
+              valueDim: 'highest',
+              symbol: 'circle',
+              symbolSize: 10,
+              label: {
+                show: false
+              },
+              emphasis: {
+                label: {
+                  show: false
                 }
-              ]
+              }
             }
+          ],
+          {
+            name: 'min line on close',
+            type: 'min',
+            valueDim: 'close'
           },
           {
-            name: 'MA5',
-            type: 'line',
-            data: calculateMA(5),
-            smooth: true,
-            lineStyle: {
-              opacity: 0.5
-            }
-          },
-          {
-            name: 'MA10',
-            type: 'line',
-            data: calculateMA(10),
-            smooth: true,
-            lineStyle: {
-              opacity: 0.5
-            }
-          },
-          {
-            name: 'MA20',
-            type: 'line',
-            data: calculateMA(20),
-            smooth: true,
-            lineStyle: {
-              opacity: 0.5
-            }
-          },
-          {
-            name: 'MA30',
-            type: 'line',
-            data: calculateMA(30),
-            smooth: true,
-            lineStyle: {
-              opacity: 0.5
-            }
+            name: 'max line on close',
+            type: 'max',
+            valueDim: 'close'
           }
         ]
-      };
-
-      
-      chart.setOption(option);
+      }
+    },
+    {
+      name: 'MA5',
+      type: 'line',
+      data: calculateMA(5),
+      smooth: true,
+      lineStyle: {
+        opacity: 0.5
+      }
+    },
+    {
+      name: 'MA10',
+      type: 'line',
+      data: calculateMA(10),
+      smooth: true,
+      lineStyle: {
+        opacity: 0.5
+      }
+    },
+    {
+      name: 'MA20',
+      type: 'line',
+      data: calculateMA(20),
+      smooth: true,
+      lineStyle: {
+        opacity: 0.5
+      }
+    },
+    {
+      name: 'MA30',
+      type: 'line',
+      data: calculateMA(30),
+      smooth: true,
+      lineStyle: {
+        opacity: 0.5
+      }
     }
-  }
+  ]
 };
+
+
+
+onMounted(() => {
+  nextTick(() => {
+    if (chartDiv.value) {
+      myChart = echarts.init(chartDiv.value);
+      myChart.setOption(option);
+    }
+  });
+});
 </script>
